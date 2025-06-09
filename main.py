@@ -1,7 +1,7 @@
-from urllib.parse import urlencode, parse_qs
+from urllib.parse import urlencode
 import pandas as pd
 import streamlit as st
-
+import altair as alt
 
 st.set_page_config(page_title="Full Fat Search", page_icon=":mag:", layout="wide")
 st.header("Full Fat Search Trend")
@@ -12,7 +12,7 @@ def get_data(q: str):
     sql = """
     select
     SUM(
-        (LENGTH(s.text) - LENGTH(REPLACE(s.text, :search, ''))) / LENGTH(:search)
+        (LENGTH(lower(s.text)) - LENGTH(REPLACE(lower(s.text), lower(:search), ''))) / LENGTH(lower(:search))
     ) AS contador,
     s.video_title,
     v.video_url,
@@ -44,21 +44,21 @@ def get_data(q: str):
 
 def buscar(q: str):
     df = get_data(q)
-    st.bar_chart(df, y="contador", color="#ee2d6f")
-    info = pd.DataFrame({
-        "Fecha": df.index.strftime("%Y-%m-%d"),
-        "Contador": df["contador"],
-        "Titulo": df["video_title"],
-        "Video": df["video_url"],
+    c = alt.Chart(df.reset_index()).mark_bar().encode(
+        x=alt.X("fecha:T", title="fecha"),
+        y=alt.Y("contador:Q", title="contador"),
+        tooltip=[
+            alt.Tooltip("contador:Q", title="Contador"),
+            alt.Tooltip("video_title:N", title="Titulo"),
+            alt.Tooltip("video_url:N", title="Video"),
+        ],
+    ).configure_mark(
+        color="#ee2d6f"
+    )
+    st.altair_chart(c)
+    st.dataframe(df, column_config={
+        "video_url": st.column_config.LinkColumn("link"),
     })
-    config = {
-        "Fecha": st.column_config.DateColumn(),
-        "Contador": st.column_config.NumberColumn(),
-        "Titulo": st.column_config.TextColumn(),
-        "Video": st.column_config.LinkColumn("Video"),
-    }
-    info.set_index("Fecha", inplace=True)
-    st.dataframe(info, column_config=config)
 
 
 default_search = st.query_params.get("buscar", "boludo")
